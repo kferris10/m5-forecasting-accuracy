@@ -3,6 +3,7 @@
 
 # automatic gc()?
 # built in progress bar?
+# why does the rowwise one take up so much memory
 
 # setup ------------------------------------------------------------------------
 
@@ -10,14 +11,14 @@ library(feather)
 library(Hmisc)
 library(tidyverse)
 library(multidplyr)
-source("helper-funs.R")
+source("production/helper-funs.R")
 
-load("models-global.RData")
-cal <- read_csv("calendar.csv") %>%
+load("fitted-models/models-global.RData")
+cal <- read_csv("data/calendar.csv") %>%
   mutate(d = as.numeric(str_replace_all(d, "d_", ""))) %>%
   rename(day = d) %>%
   select(date, day, year, month, weekday)
-train_raw <- read_feather("data-train-wide.feather")
+train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # train_by_item <- train_raw %>% 
@@ -176,7 +177,7 @@ expand_grid(store_id = unique(train_raw$store_id),
 # modelling by store/item -----------------------------------------------
 
 
-cluster <- new_cluster(5)
+cluster <- new_cluster(4)
 cluster_library(cluster, c("dplyr", "tidyr"))
 cluster_assign(cluster, 
                mod_fun = mod_fun, 
@@ -195,9 +196,12 @@ train_by_store_item <- train_raw %>%
 
 # 
 gc()
+t1 <- Sys.time()
 store_item_coefs <- train_by_store_item %>% 
+  slice(c(1:6000, 7000:8000)) %>% 
   partition(cluster) %>% 
   mutate(model_dat2 = list(mod_fun(data))) %>% 
   collect()
 rm(cluster)
 gc()
+t2 <- Sys.time()

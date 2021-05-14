@@ -10,7 +10,6 @@
 # setup ------------------------------------------------------------------------
 
 library(feather)
-library(lme4)
 library(Hmisc)
 library(tidyverse)
 library(broom)
@@ -22,11 +21,11 @@ train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # 10th order polynomial decomposition for indendence!
-pp <- poly(1:1941, degrees = 10)
+pp <- poly(1:1969, degrees = 4)
 
 
 # large enough sample I can just throw everything in here
-f_base <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + 
+f_base <- formula(~ X1 + X2 + X3 + X4 + 
                     factor(month) + weekday)
 
 # aggregate by day and convert to long format for modeling
@@ -56,7 +55,7 @@ train_dat$pred_non0_base <- predict(m_non0_base, newdata = train_dat, type = "re
 # E(sales | sales > 0)
 m_sales_base <- train_dat %>% 
   filter(non0 > 0) %>% 
-  glm(update(f_base, sales ~ . + offset(log(non0))), data = ., family = poisson())
+  glm(update(f_base, sales ~ .), data = ., family = poisson(), offset = log(non0))
 train_dat$pred_sales_base <- predict(m_sales_base, newdata = train_dat, type = "response")
 
 ### check coefs
@@ -108,8 +107,31 @@ train_dat %>%
   mutate(pred_total_sales = pred_non0_base * pred_sales_base) %>% 
   arrange(desc(sales * non0 / n - pred_total_sales)) %>% 
   glimpse()
-  
 
+qplot(day, sales / 32000, data = train_dat, geom = c("line", "smooth")) + 
+  geom_vline(aes(xintercept = 1941)) + 
+  xlim(c(1000, 2000)) + ylim(c(0, 3))
+  
 # saving -----------------------------------------------------------------------
 
-save(m_non0_base, m_sales_base, pp, file = "models-global.RData")
+# global predictions
+preds_global <- tibble(day = 1:1969) %>% 
+  left_join(cal %>% mutate(d = as.numeric(str_replace_all(d, "d_", ""))), 
+            by = c("day" = "d")) %>% 
+  bind_cols(data.frame(predict(pp, .$day))) %>% 
+  mutate(non0 = 1) %>% 
+  mutate(lp_non0_base = predict(m_non0_base, newdata = .), 
+         lp_sales_base = predict(m_sales_base, newdata = .)) %>% 
+  select(day, lp_non0_base, lp_sales_base) %>% 
+  mutate(across(where(is.numeric), round, digits = 4))
+qplot(day, arm::invlogit(lp_non0_base) * exp(lp_sales_base), data = preds_global, geom = 'line') + 
+  geom_vline(aes(xintercept = 1941)) + 
+  xlim(c(1000, 2000)) + ylim(c(0, 3))
+
+
+pp_global <- tibble(day = 1:1969) %>% 
+  bind_cols(data.frame(predict(pp, .$day))) %>% 
+  mutate(across(where(is.numeric), round, digits = 6))
+
+save(m_non0_base, m_sales_base, pp, file = "fitted-models/models-global.RData")
+save(pp_global, preds_global, file = "predictions/preds-global.RData")

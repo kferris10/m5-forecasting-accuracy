@@ -9,8 +9,8 @@ library(tidyverse)
 library(feather)
 library(pbapply)
 
-cal <- read_csv("calendar.csv")
-train_eval <- read_csv("sales_train_evaluation.csv")
+cal <- read_csv("data/calendar.csv")
+train_eval <- read_csv("data/sales_train_evaluation.csv")
 train_eval %>% select(1:20) %>% glimpse()
 
 # remove all elements until we get to a 0 --------------------------

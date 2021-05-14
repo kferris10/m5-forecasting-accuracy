@@ -5,6 +5,8 @@
 # is I(day_z^4) a good fit vs spline?  Is correlation between terms an issue?
 # double check whether time trend picks up on seasonal effects
 # somewhat concerning calibration in Feb and Dec
+# need to worry about time trend in the tails
+# need to fix item-store specific time trends: the values get too big to be useful
 
 library(arm)
 library(lme4)
