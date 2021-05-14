@@ -1,12 +1,13 @@
 
 # notes -------------------------------------------------------------
 # variables: price, SNAP, natural disasters, AR(1/7/365), holidays/day of year
-# fix 0s(?): are they when store is out of stock, data errors?
+# fix 0s(?): are they when store is out of stock, data errors? - FOODS_3_732
 # is I(day_z^4) a good fit vs spline?  Is correlation between terms an issue?
 # double check whether time trend picks up on seasonal effects
 # somewhat concerning calibration in Feb and Dec
 # need to worry about time trend in the tails
 # need to fix item-store specific time trends: the values get too big to be useful
+# need more than a 4th order polynomial
 
 library(arm)
 library(lme4)

@@ -33,7 +33,8 @@ prep_time_data <- function(data,
                  values_to = "sales", 
                  values_drop_na = TRUE) %>% 
     left_join(pp_global, by = "day") %>% 
-    left_join(preds_global, by = "day")
+    left_join(preds_global, by = "day") %>% 
+    left_join(cal, by = "day")
   
   if(!is.null(off_data)) {
     off_data_non0_use <- off_data %>%  
@@ -70,6 +71,7 @@ calc_glm_coefs <- function(data, f, is_pois, offset, pb = NULL) {
     data <- data %>% filter(sales > 0)
   } else {
     fam <- binomial()
+    data <- data %>% filter(between(invlogit(off), .001, .999))
   }
   
   gc()

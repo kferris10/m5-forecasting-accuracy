@@ -27,7 +27,11 @@ train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # setting up the baseline time predictions
-preds_time0 <- bind_cols(select(preds_item_time, 1:3), preds_item_time[, 4:3885] + preds_store_time[, 4:3885])
+preds_time0 <- bind_cols(
+  select(preds_item_time, ends_with("id")), 
+  select(preds_item_time, -ends_with("id")) + 
+    select(preds_store_time, -ends_with("id"))
+)
 rm(preds_item_time, preds_store_time)
 gc()
 
@@ -88,6 +92,12 @@ stopCluster(cl)
 stopImplicitCluster()
 gc()
 
+# issues with some absolutely massive coefficients
+store_item_coefs_regr %>% 
+  pivot_longer(-c(store_id, item_id), names_to = "param", values_to = "est") %>% 
+  ggplot(aes(x = log(abs(est)))) + 
+  geom_histogram(binwidth = 1, colour = "darkgreen", fill = "grey", alpha = 0.3) + 
+  facet_wrap(~param, scales = "free_x")
 
 # generating predictions -------------------------------------------------------
 
@@ -149,13 +159,23 @@ preds_new %>%
   mutate(pred_non0 = arm::invlogit(lpred_non0_item + lpred_non0_old + lp_non0_base), 
          pred_sales_non0 = exp(lpred_sales_item + lp_sales_base + lpred_sales_old), 
          pred_sales = pred_non0 * pred_sales_non0) %>% 
-  qplot(day, pred_sales, data = ., geom = "line", colour = store_id, group = item_id)
+  qplot(day, pred_sales, data = ., geom = "line", colour = store_id, group = item_id) + 
+  facet_wrap(~item_id, scales = "free_y")
 
 # saving -----------------------------------------------------------------------
 
-preds_time <- bind_cols(select(preds_time0, 1:3), 
-                        preds_time0[, 4:3885] + preds_store_item_time[, 4:3885]) %>% 
-  mutate(across(where(is.numeric), round, digits = 4))
+# reloading raw predictions - memory issues suck!
+load("predictions/preds-time-store.RData")
+load("predictions/preds-time-item.RData")
+
+preds_time <- bind_cols(
+  select(preds_time0, 1:3), 
+  select(preds_store_time, starts_with("lpred")) + 
+    select(preds_item_time, starts_with("lpred")) + 
+    select(preds_store_item_time, starts_with("lpred"))
+) %>% 
+  mutate(across(where(is.numeric), round, digits = 4)) %>% 
+  rename_with(str_replace_all, pattern = "_store_", replacement = "_time_")
 
 
 save(store_item_coefs_regr, file = "fitted-models/models-time-store-item.RData")

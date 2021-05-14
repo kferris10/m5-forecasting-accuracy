@@ -100,7 +100,7 @@ preds_item_time <- train_raw %>%
 # checks -----------------------------------------------------------------------
 
 # predictions get completely wonky in the tails...
-expand_grid(item_id = sample(train_raw$item_id, 5), day = pp_global$day) %>% 
+expand_grid(item_id = c(sample(train_raw$item_id, 5), "FOODS_3_252"), day = pp_global$day) %>% 
   left_join(pp_global, by = "day") %>% 
   group_by(item_id) %>% 
   nest(day = day, pp = starts_with("X")) %>% 
@@ -115,7 +115,33 @@ expand_grid(item_id = sample(train_raw$item_id, 5), day = pp_global$day) %>%
   sample_frac(.2) %>% 
   left_join(preds_global, by = c("day")) %>% 
   mutate(pred_sales = arm::invlogit(lpred_non0_item + lp_non0_base) * exp(lpred_sales_item + lp_sales_base)) %>% 
-  qplot(day, pred_sales, data = ., geom = "line", group = item_id)
+  qplot(day, pred_sales, data = ., geom = "line", colour = item_id)
+
+expand_grid(item_id = c("FOODS_3_282", "FOODS_3_370"), day = pp_global$day) %>% 
+  left_join(pp_global, by = "day") %>% 
+  group_by(item_id) %>% 
+  nest(day = day, pp = starts_with("X")) %>% 
+  left_join(item_coefs_nested, by = "item_id") %>% 
+  mutate(
+    lpred_non0_item = map2(pp, non0, ~ as.numeric(cbind(1, as.matrix(.x)) %*% as.numeric(.y))), 
+    lpred_sales_item = map2(pp, sales, ~ as.numeric(cbind(1, as.matrix(.x)) %*% as.numeric(.y)))
+  ) %>% 
+  ungroup() %>% 
+  select(item_id, day, lpred_non0_item, lpred_sales_item) %>% 
+  unnest(c(day, lpred_non0_item, lpred_sales_item)) %>% 
+  sample_frac(.2) %>% 
+  left_join(preds_global, by = c("day")) %>% 
+  mutate(pred_sales = arm::invlogit(lpred_non0_item + lp_non0_base) * exp(lpred_sales_item + lp_sales_base)) %>% 
+  qplot(day, pred_sales, data = ., geom = "line", colour = item_id)
+
+# this looks good
+item_coefs_regr %>% 
+  pivot_longer(cols = -item_id, names_to = "variable", values_to = "value") %>% 
+  ggplot(aes(x = log(abs(value)))) + 
+  geom_histogram(binwidth = 1, alpha = 0.5, fill = "grey", colour = "darkgreen") + 
+  facet_wrap(~variable, scales = "free") + 
+  theme_bw()
+
 
 # saving -----------------------------------------------------------------------
 

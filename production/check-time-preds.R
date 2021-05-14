@@ -2,6 +2,7 @@
 #' notes -----------------------------------------------------------
 #' 
 #' this worked shockingly well
+#' major issues with 0s and extreme store/item coefs.  But otherwise I'm pretty happy
 
 # setup -----------------------------------------------------------
 
@@ -17,25 +18,26 @@ load("predictions/preds-time-all.RData")
 train_raw <- read_feather("data/data-train-wide.feather") %>% 
   # just using post-2012 for simplicity
   select(-(d_1:d_337))
-train_use %>% select(1:20) %>% glimpse()
-
+train_raw %>% select(1:20) %>% glimpse()
 
 act <- select(train_raw, starts_with("d_"))
 train_raw$total_sales <- apply(act, 1, sum, na.rm = T)
 train_raw$total_non0s <- apply(act, 1, function(x) sum(x != 0, na.rm = T))
 
-preds_non0_clean <- select(preds_time, starts_with("lpred_non0_item_")) %>%
-  rename_with(str_replace_all, pattern = "lpred_non0_item_", replacement = "d_") %>% 
+preds_non0_clean <- select(preds_time, starts_with("lpred_non0_time_")) %>%
+  rename_with(str_replace_all, pattern = "lpred_non0_time_", replacement = "d_") %>% 
   # also removing thanksgiving and christmas
   select(-(d_1:d_337), 
          -c(d_331, d_697, d_1062, d_1427, d_1792), 
-         -c(d_300, d_664, d_1035, d_1399, d_1763))
-preds_non0_sales_clean <- select(preds_time, starts_with("lpred_sales_item_")) %>%
-  rename_with(str_replace_all, pattern = "lpred_sales_item_", replacement = "d_") %>% 
+         -c(d_300, d_664, d_1035, d_1399, d_1763), 
+         -c(d_1942:d_1969))
+preds_non0_sales_clean <- select(preds_time, starts_with("lpred_sales_time_")) %>%
+  rename_with(str_replace_all, pattern = "lpred_sales_time_", replacement = "d_") %>% 
   # also removing thanksgiving and christmas
   select(-(d_1:d_337), 
          -c(d_331, d_697, d_1062, d_1427, d_1792), 
-         -c(d_300, d_664, d_1035, d_1399, d_1763))
+         -c(d_300, d_664, d_1035, d_1399, d_1763), 
+         -c(d_1942:d_1969))
 preds_global_clean <- preds_global %>% 
   filter(day %in% as.numeric(str_replace_all(colnames(preds_non0_clean), "d_", "")))
 preds_non0 <- act %>% 
@@ -90,7 +92,7 @@ bdown <- function(store, item) {
            pred_sales = invlogit(lpred_non0) * exp(lpred_sales)) %>% 
     select(store_id, item_id, day, pred_non0, pred_sales)
   
-  full_join(act, preds, by = c("store_id", "item_id", "day")) %>% 
+  left_join(act, preds, by = c("store_id", "item_id", "day")) %>% 
     arrange(store_id, item_id, day) %>% 
     group_by(store_id, item_id) %>% 
     mutate(cum_sales = cumsum(sales), 
@@ -112,19 +114,12 @@ bdown(c("TX_1", "WI_1", "CA_1"), "FOODS_3_252") %>%
   facet_wrap(~store_id)
 
 bdown(c("CA_1"), sample(train_raw$item_id, 6)) %>% 
-  filter(as.numeric(substr(date, 1, 4)) >= 2012) %>% 
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
   geom_line(aes(y = pred_sales), colour = "steelblue") + 
   facet_wrap(~item_id)
 
-# double check FOODS_3_665
-bdown(c("CA_1"), c(sample(train_raw$item_id, 5), "FOODS_3_665")) %>% 
-  ggplot(aes(x = date, y = cum_0s)) + 
-  geom_line() + 
-  geom_line(aes(y = cum_pred_0s), colour = "steelblue") + 
-  facet_wrap(~item_id)
-
+# umm... ?
 bdown(c("CA_3"), "FOODS_3_514") %>% 
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
@@ -144,24 +139,23 @@ preds_time %>%
 # biggest residuals -------------------------------------------------------
 
 # looks like we're just having trouble with the 0s...
+# still lots of concerning stuff happening, but looks much better
 train_raw %>% 
   select(ends_with("_id"), starts_with("total")) %>% 
-  filter(total_sales > 0, total_pred_sales < 1e4) %>% 
   mutate(log_resid = log(total_sales) - log(total_pred_sales)) %>% 
   arrange(desc(log_resid))
-# filtering out 0 preds (about 40)
-# still lots of concerning stuff happening with predicted 0s
 bdown("WI_3", "FOODS_3_282") %>% 
   # filter(!is.na(sales)) %>% 
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
   geom_line(aes(y = pred_sales), colour = "steelblue")
 
-# mostly two things: 
+# mostly thee things: 
 # (1) bugs in my total code
 # (2) super low-sale products where model can't quite get extreme enough 
 #    too much RTTM?
-# what is going on here: bdown("CA_1", "FOODS_3_370") %>% 
+# (3) trouble for items that never get sold sometimes
+# what is going on here: bdown("CA_1", "FOODS_3_370") 
 train_raw %>% 
   select(ends_with("_id"), starts_with("total")) %>% 
   filter(total_sales > 0, total_pred_sales < 1e4) %>% 
