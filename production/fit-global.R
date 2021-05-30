@@ -21,11 +21,11 @@ train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # 10th order polynomial decomposition for indendence!
-pp <- poly(1:1969, degrees = 4)
+pp <- poly(1:1969, degrees = 10)
 
 
 # large enough sample I can just throw everything in here
-f_base <- formula(~ X1 + X2 + X3 + X4 + 
+f_base <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + 
                     factor(month) + weekday)
 
 # aggregate by day and convert to long format for modeling

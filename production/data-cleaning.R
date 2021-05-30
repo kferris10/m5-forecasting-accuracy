@@ -16,48 +16,48 @@ train_eval %>% select(1:20) %>% glimpse()
 # remove all elements until we get to a 0 --------------------------
 
 ### identifying what day the first sale occurred for each row
-# train_eval$first_non0 <- train_eval %>% 
-#   select(starts_with("d_")) %>% 
-#   pbapply(1, function(x) cumsum(x == 0)) %>% 
-#   pbapply(2, function(x) min(x[x != 1:1941]))
-# # checking to make sure that worked
-# train_eval %>% 
-#   slice(2) %>% 
-#   pivot_longer(starts_with("d_"), 
-#                names_to = "day", 
-#                names_prefix = "d_", 
-#                names_transform = as.numeric, 
-#                values_to = "sales") %>% 
-#   mutate(day = as.numeric(day)) %>% 
-#   qplot(day, sales, data = ., geom = "line") + 
-#   geom_vline(aes(xintercept = unique(first_non0)), linetype = "dashed")
-# 
-# ### NA'ing out anything before that date
-# 
-# # there's probably a tidy way to do this, but a for loop works pretty well too
-# for(j in 1:1941) {
-#   name_j <- paste0("d_", j)
-#   train_eval[[name_j]] <- ifelse(j < train_eval$first_non0, 
-#                                 NA, 
-#                                 train_eval[[name_j]])
-# }
-# 
-# # checking to make sure that worked
-# train_eval %>% 
-#   filter(store_id == "CA_1") %>% 
-#   # sample_n(6) %>% 
-#   filter(item_id %in% c(
-#     "FOODS_2_197", "FOODS_2_268", "FOODS_3_409", 
-#     "FOODS_3_768", "FOODS_3_822", "HOUSEHOLD_1_507"
-#   )) %>% 
-#   pivot_longer(starts_with("d_"), 
-#                names_to = "day", 
-#                names_prefix = "d_", 
-#                names_transform = as.numeric, 
-#                values_to = "sales") %>% 
-#   mutate(day = as.numeric(day))  %>% 
-#   qplot(day, sales, data = ., geom = "line") + 
-#   facet_wrap(~item_id, scales = "free_y")
+train_eval$first_non0 <- train_eval %>%
+  select(starts_with("d_")) %>%
+  pbapply(1, function(x) cumsum(x == 0)) %>%
+  pbapply(2, function(x) min(x[x != 1:1941]))
+# checking to make sure that worked
+train_eval %>%
+  slice(2) %>%
+  pivot_longer(starts_with("d_"),
+               names_to = "day",
+               names_prefix = "d_",
+               names_transform = as.numeric,
+               values_to = "sales") %>%
+  mutate(day = as.numeric(day)) %>%
+  qplot(day, sales, data = ., geom = "line") +
+  geom_vline(aes(xintercept = unique(first_non0)), linetype = "dashed")
+
+### NA'ing out anything before that date
+
+# there's probably a tidy way to do this, but a for loop works pretty well too
+for(j in 1:1941) {
+  name_j <- paste0("d_", j)
+  train_eval[[name_j]] <- ifelse(j < train_eval$first_non0,
+                                NA,
+                                train_eval[[name_j]])
+}
+
+# checking to make sure that worked
+train_eval %>%
+  filter(store_id == "CA_1") %>%
+  # sample_n(6) %>%
+  filter(item_id %in% c(
+    "FOODS_2_197", "FOODS_2_268", "FOODS_3_409",
+    "FOODS_3_768", "FOODS_3_822", "HOUSEHOLD_1_507"
+  )) %>%
+  pivot_longer(starts_with("d_"),
+               names_to = "day",
+               names_prefix = "d_",
+               names_transform = as.numeric,
+               values_to = "sales") %>%
+  mutate(day = as.numeric(day))  %>%
+  qplot(day, sales, data = ., geom = "line") +
+  facet_wrap(~item_id, scales = "free_y")
 
 
 # save ----------------------------------

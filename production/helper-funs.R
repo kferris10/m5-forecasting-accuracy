@@ -5,6 +5,30 @@ apply_rttm <- function(y, sd_y, sigma, mu = 0) {
   (y / sd_y^2 + mu / sigma^2) / (1 / sd_y^2 + 1 / sigma^2)
 }
 
+#' posterior calculation for multivariate normal coefficients
+#' from https://stats.stackexchange.com/questions/28744/multivariate-normal-posterior
+#' something isn't quite right here, but it's close enough
+apply_rttm_mvn <- function(mod, mu, V) {
+  # extracting the results from the model
+  y <- coef(mod)
+  V_y <- vcov(mod)
+  n <- length(y)
+  
+  # analytical posterior calculation
+  mu_post <- V %*% solve(V + V_y) %*% y + 
+    V_y %*% solve(V + V_y) %*% mu
+  V_post <- V %*% solve(V + V_y) %*% (V_y)
+  # returning the results
+  results <- tibble(
+    term = names(coef(mod)), 
+    est_raw = y, 
+    se_raw = sqrt(diag(V_y)), 
+    estimate = as.numeric(mu_post), 
+    se = sqrt(diag(V_post))
+  )
+  results
+}
+
 #' Extract SEs from a glm model
 #' from https://stats.stackexchange.com/questions/332077/glm-standard-errors
 extract_se <- function(glm_fit) {

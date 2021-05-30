@@ -15,10 +15,12 @@ source("production/helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
 # model specifications I'll be using
-f_time <- formula(~ X1 + X2 + X3 + X4)
+f_time <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
 
 # loading data
 load("predictions/preds-global.RData")
+cal <- read_csv("data/calendar.csv") %>% 
+  mutate(day = as.numeric(str_replace_all(d, "d_", "")))
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
@@ -31,20 +33,25 @@ for(i in unique(train_raw$store_id)) {
   pb$tick()
   dat_i <- train_raw %>% filter(store_id == i)
   
-  # fitting the models
+  # fitting models
   time_mod_data_i <- prep_time_data(dat_i)
   m_non0_time_i <- glm(update(f_time, I(sales != 0) ~ .), 
-                       time_mod_data_i, 
+                       data = time_mod_data_i, 
                        family = binomial(), 
                        offset = lp_non0_base)
   m_sales_time_i <- glm(update(f_time, sales ~ .), 
-                        time_mod_data_i %>% filter(sales > 0), 
+                        data = time_mod_data_i %>% filter(sales > 0), 
                         family = poisson(), 
                         offset = lp_sales_base)
   
+  # applying reasonable priors
+  j <- length(coef(m_non0_time_i))
+  results_non0_i <- apply_rttm_mvn(m_non0_time_i, rep(0, j), diag(25, j, j))
+  results_sales_i <- apply_rttm_mvn(m_sales_time_i, rep(0, j), diag(25, j, j))
+  
   # combining the results into a nice dataset
-  results_i <- tidy(m_non0_time_i) %>% 
-    left_join(tidy(m_sales_time_i), by = "term", suffix = c("_non0", "_sales")) %>% 
+  results_i <- results_non0_i %>% 
+    left_join(results_sales_i, by = "term", suffix = c("_non0", "_sales")) %>% 
     mutate(store_id = i)
   
   store_coefs <- bind_rows(store_coefs, results_i)
@@ -54,10 +61,10 @@ for(i in unique(train_raw$store_id)) {
 # applying RTTM to coefficients
 store_coefs_regr <- store_coefs %>% 
   group_by(term) %>% 
-  mutate(sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
-         sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-         est_regr_non0 = apply_rttm(estimate_non0, std.error_non0, sd_between_non0), 
-         est_regr_sales = apply_rttm(estimate_sales, std.error_sales, sd_between_sales)) %>% 
+  mutate(sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / se_non0^2)), 
+         sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / se_sales^2)), 
+         est_regr_non0 = apply_rttm(estimate_non0, se_non0, sd_between_non0), 
+         est_regr_sales = apply_rttm(estimate_sales, se_sales, sd_between_sales)) %>% 
   ungroup() %>% 
   select(store_id, term, est_regr_non0, est_regr_sales) %>% 
   pivot_wider(names_from = term, values_from = c(est_regr_non0, est_regr_sales)) %>% 
