@@ -53,14 +53,13 @@ preds_sales2 <- preds_non0 * t(apply(
 train_raw$total_pred_sales <- round(apply(preds_sales2, 1, sum, na.rm = T), 1)
 train_raw$total_pred_non0s <- round(apply(preds_non0, 1, sum, na.rm = T), 1)
 
-# why the huge numbers?
-summary(select(train_raw, starts_with("total")))
 
-# good sign!
+# good sign! - not predicting quite enough 0s, but otherwise really good
 qplot(total_pred_non0s, total_non0s, data = train_raw, geom = "smooth") + geom_abline()
-# large predictions are out of control, but otherwise looks good
+
+# very very good
 train_raw %>% 
-  filter(total_pred_sales < 1e4) %>% 
+  # filter(total_pred_sales < 1e4) %>% 
   qplot(total_pred_sales, total_sales, data = ., geom = "smooth") + 
   geom_abline()
 
@@ -120,57 +119,40 @@ bdown(c("CA_1"), sample(train_raw$item_id, 6)) %>%
   facet_wrap(~item_id)
 
 # umm... ?
-bdown(c("CA_3"), "FOODS_3_514") %>% 
+bdown(c("CA_3", "CA_1", "CA_2"), "FOODS_3_514") %>% 
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
   geom_line(aes(y = pred_sales), colour = "steelblue") + 
-  facet_wrap(~item_id)
-
-# something very wrong with large preds ----------------------------------------------------------
-
-preds_time %>% 
-  slice(8837) %>% 
-  pivot_longer(cols = starts_with("lpred_"), 
-               names_to = c(".value", "temp", "day"), 
-               names_prefix = "lpred_", 
-               names_sep = "_", 
-               names_transform = list(day = as.integer)) 
+  facet_wrap(~store_id)
 
 # biggest residuals -------------------------------------------------------
 
 # looks like we're just having trouble with the 0s...
-# still lots of concerning stuff happening, but looks much better
+# a lot of this is my strip_left code note working...
 train_raw %>% 
   select(ends_with("_id"), starts_with("total")) %>% 
   mutate(log_resid = log(total_sales) - log(total_pred_sales)) %>% 
-  arrange(desc(log_resid))
-bdown("WI_3", "FOODS_3_282") %>% 
-  # filter(!is.na(sales)) %>% 
+  arrange(desc(log_resid), desc(total_sales))
+# bdown("WI_3", "FOODS_3_282") %>% 
+# bdown("TX_1", "FOODS_3_135") %>% 
+bdown("WI_1", "HOUSEHOLD_1_399") %>%
+# bdown("WI_3", "FOODS_3_654") %>%
+  filter(!is.na(sales)) %>%
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
   geom_line(aes(y = pred_sales), colour = "steelblue")
 
-# mostly thee things: 
-# (1) bugs in my total code
-# (2) super low-sale products where model can't quite get extreme enough 
-#    too much RTTM?
-# (3) trouble for items that never get sold sometimes
-# what is going on here: bdown("CA_1", "FOODS_3_370") 
+# think the big thing is that the non0 predictions get way too low sometimes
+# that's really annoying, going to mess with the months code
 train_raw %>% 
   select(ends_with("_id"), starts_with("total")) %>% 
   filter(total_sales > 0, total_pred_sales < 1e4) %>% 
   mutate(log_resid = log(total_sales) - log(total_pred_sales)) %>% 
   arrange((log_resid))
-bdown("TX_1", "FOODS_2_209") %>% 
+bdown("CA_3", "FOODS_3_152") %>% 
   filter(!is.na(sales)) %>% 
   ggplot(aes(x = date, y = sales)) + 
   geom_line() + 
   geom_line(aes(y = pred_sales), colour = "steelblue")
 
-
-# this is good
-train_raw %>% 
-  select(ends_with("_id"), starts_with("total")) %>% 
-  filter(total_sales == 0) %>% 
-  arrange(desc(total_pred_sales))
 
