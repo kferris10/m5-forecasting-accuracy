@@ -70,7 +70,13 @@ save_dat <- train_eval %>%
          -c(d_300, d_664, d_1035, d_1399, d_1763))
   
 
+# cleaner calendar
+cal_df <- cal %>% 
+  mutate(day = as.numeric(str_replace_all(d, "d_", ""))) %>% 
+  select(year, month, date, day, weekday)
+
 # saving as feather files
 # hadley says that they are fast and he's THE MAN so...
 write_feather(save_dat, "data/data-train-wide.feather")
+write_feather(cal_df, "data/data-calendar-clean.feather")
 

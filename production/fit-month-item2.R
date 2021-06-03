@@ -76,7 +76,7 @@ item_month_coefs <- foreach(i=unique(train_raw$item_id), .combine=rbind) %dopar%
                p.value = numeric())
   }
   # sales modes
-  sales_mod_data <- mod_data_i %>% filter(sales > 0, between(lp_sales_base, -5, 5))
+  sales_mod_data <- mod_data_i %>% filter(sales > 0, between(lp_sales_base, -8, 8))
   cf_sales <- if(nrow(sales_mod_data) > 1) {
     m_sales_time_i <- glm(update(f_month, sales ~ .), 
                           sales_mod_data, 
@@ -106,6 +106,17 @@ item_month_coefs <- foreach(i=unique(train_raw$item_id), .combine=rbind) %dopar%
 stopCluster(cl)
 stopImplicitCluster()
 gc()
+
+# summary of results
+item_month_coefs %>% 
+  group_by(term) %>% 
+  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
+            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
+            sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
+            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+  mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
 item_month_coefs_regr <- item_month_coefs %>% 

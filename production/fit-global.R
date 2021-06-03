@@ -16,7 +16,7 @@ library(broom)
 source("production/helper-funs.R")
 set.seed(314)
 
-cal <- read_csv("data/calendar.csv")
+cal <- read_feather("data/data-calendar-clean.feather")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
@@ -27,6 +27,9 @@ pp <- poly(1:1969, degrees = 10)
 # large enough sample I can just throw everything in here
 f_base <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + 
                     factor(month) + weekday)
+f_time <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+f_month <- formula(~ 0 + factor(month))
+f_weekday <- formula(~ 0 + weekday)
 
 # aggregate by day and convert to long format for modeling
 train_dat <- train_raw %>% 
@@ -42,7 +45,7 @@ train_dat <- train_raw %>%
                names_sep = "_", 
                names_transform = list(day = as.numeric), 
                values_drop_na = TRUE) %>% 
-  left_join(cal %>% mutate(d = as.numeric(str_replace_all(d, "d_", ""))), by = c("day" = "d")) %>% 
+  left_join(cal, by = c("day")) %>% 
   bind_cols(data.frame(predict(pp, .$day)))
 
 # fitting the global models -----------------------------------------------------
@@ -98,8 +101,8 @@ train_dat %>%
   mutate(pred_total_sales = pred_non0_base * pred_sales_base) %>% 
   # sample_n(200) %>%
   filter(year == 2014) %>%
-  qplot(date, sales * non0 / n, data = ., geom = "line") + geom_line(aes(y = pred_total_sales), colour = "red")
-  # qplot(pred_total_sales, sales * non0 / n, data = .) + geom_abline()
+  # qplot(date, sales * non0 / n, data = ., geom = "line") + geom_line(aes(y = pred_total_sales), colour = "red")
+  qplot(pred_total_sales, sales * non0 / n, data = .) + geom_abline()
 
 
 # tought to see a pattern (outside of holdiays) - good
@@ -116,9 +119,9 @@ qplot(day, sales / 32000, data = train_dat, geom = c("line", "smooth")) +
 
 # global predictions
 preds_global <- tibble(day = 1:1969) %>% 
-  left_join(cal %>% mutate(d = as.numeric(str_replace_all(d, "d_", ""))), 
-            by = c("day" = "d")) %>% 
-  bind_cols(data.frame(predict(pp, .$day))) %>% 
+  left_join(cal, by = c("day")) %>% 
+  # cute hack to be very careful extrapolatin
+  bind_cols(data.frame(predict(pp, pmin(1941, .$day)))) %>% 
   mutate(non0 = 1) %>% 
   mutate(lp_non0_base = predict(m_non0_base, newdata = .), 
          lp_sales_base = predict(m_sales_base, newdata = .)) %>% 
@@ -134,4 +137,4 @@ pp_global <- tibble(day = 1:1969) %>%
   mutate(across(where(is.numeric), round, digits = 6))
 
 save(m_non0_base, m_sales_base, pp, file = "fitted-models/models-global.RData")
-save(pp_global, preds_global, file = "predictions/preds-global.RData")
+save(pp_global, preds_global, f_time, f_month, f_weekday, file = "predictions/preds-global.RData")

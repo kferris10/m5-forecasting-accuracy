@@ -2,7 +2,7 @@
 # notes ------------------------------------------------------------------------
 
 # calculating time trend coefficients for each item
-# this takes ~30 minutes
+# this takes ~45 minutes
 
 # setup ------------------------------------------------------------------------
 
@@ -12,31 +12,39 @@ library(tidyverse)
 library(broom)
 library(progress)
 library(mgcv)
+library(foreach)
+library(doParallel)
+library(tcltk)
 source("production/helper-funs.R")
-options(stringsAsFactors = F, digits = 3, mc.cores = 2)
-
-# model specifications I'll be using
-f_time <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
 # loading data
 load("predictions/preds-global.RData")
 load("predictions/preds-time-store.RData")
-cal <- read_csv("data/calendar.csv") %>% 
-  mutate(day = as.numeric(str_replace_all(d, "d_", ""))) %>% 
-  select(day, date, weekday, month)
+cal <- read_feather("data/data-calendar-clean.feather")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # fitting by item -------------------------------------------------------------
 
+#setup parallel backend to use many processors
+cl <- makeCluster(getOption("mc.cores"))
+registerDoParallel(cl)
+items <- unique(train_raw$item_id)
+n <- length(items)
+clusterExport(cl, c("n"))
+item_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mgcv", "tcltk"), .combine=rbind) %dopar% {
+  if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
+  setTkProgressBar(pb, i)  
 
-item_coefs <- tibble(data.frame())
-
-pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
-for(i in unique(train_raw$item_id)) {
-  pb$tick()
-  dat_i <- train_raw %>% filter(item_id == i)
-  off_dat_i <- preds_store_time %>% filter(item_id == i)
+# item_coefs <- tibble(data.frame())
+# pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
+# for(i in unique(train_raw$item_id)) {
+#   pb$tick()
+  
+  item_i <- items[i]
+  dat_i <- train_raw %>% filter(item_id == item_i)
+  off_dat_i <- preds_store_time %>% filter(item_id == item_i)
   
   # fitting gams initially
   time_mod_data_i <- prep_time_data(dat_i, 
@@ -70,11 +78,29 @@ for(i in unique(train_raw$item_id)) {
   # combining the results into a nice dataset
   results_i <- results_non0_i %>% 
     left_join(results_sales_i, by = "term", suffix = c("_non0", "_sales")) %>% 
-    mutate(item_id = i)
+    mutate(item_id = item_i)
   
-  item_coefs <- bind_rows(item_coefs, results_i)
+  #   item_coefs <- bind_rows(item_coefs, results_i)
+  # }
+  
+  results_i
 }
 
+# closing the clusters
+stopCluster(cl)
+stopImplicitCluster()
+gc()
+
+# summary of results
+item_coefs %>% 
+  group_by(term) %>% 
+  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / se_non0^2, na.rm = T), 
+            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / se_non0^2)), 
+            sd_within_non0 = sqrt(mean(se_non0^2, na.rm = T)), 
+            mu_sales = weighted.mean(estimate_sales, 1 / se_sales^2, na.rm = T), 
+            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / se_sales^2)), 
+            sd_within_sales = sqrt(mean(se_sales^2, na.rm = T))) %>% 
+  mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
 item_coefs_regr <- item_coefs %>% 
@@ -91,8 +117,6 @@ item_coefs_regr <- item_coefs %>%
   pivot_wider(names_from = term, values_from = c(est_regr_non0, est_regr_sales)) %>% 
   rename_with(str_replace_all, pattern = "est_regr_", replacement = "") %>% 
   mutate(across(where(is.numeric), round, digits = 4))
-# mean(item_coefs_regr$non0_X5 > 20)
-# [1] .0236
 
 # generating predictions -------------------------------------------------------
 
@@ -101,7 +125,9 @@ item_coefs_nested <- item_coefs_regr %>%
   nest(non0 = starts_with("non0_"), sales = starts_with("sales_"))
 item_preds <- expand_grid(item_id = unique(train_raw$item_id), 
                           day = pp_global$day) %>% 
-  left_join(pp_global, by = "day") %>% 
+  mutate(day2 = pmin(1941, day)) %>% 
+  left_join(pp_global, by = c("day2" = "day")) %>% 
+  select(-day2) %>% 
   group_by(item_id) %>% 
   nest(day = day, pp = starts_with("X")) %>% 
   left_join(item_coefs_nested, by = "item_id") %>% 
@@ -157,14 +183,6 @@ expand_grid(item_id = c("FOODS_3_282", "FOODS_3_370", "HOUSEHOLD_1_459"), day = 
   filter(day > 500) %>% 
   mutate(pred_sales = arm::invlogit(lpred_non0_item + lp_non0_base) * exp(lpred_sales_item + lp_sales_base)) %>% 
   qplot(day, pred_sales, data = ., geom = "line", colour = item_id)
-
-# this looks good
-item_coefs_regr %>% 
-  pivot_longer(cols = -item_id, names_to = "variable", values_to = "value") %>% 
-  ggplot(aes(x = log(abs(value)))) + 
-  geom_histogram(binwidth = 1, alpha = 0.5, fill = "grey", colour = "darkgreen") + 
-  facet_wrap(~variable, scales = "free") + 
-  theme_bw()
 
 
 # saving -----------------------------------------------------------------------

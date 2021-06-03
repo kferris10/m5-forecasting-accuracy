@@ -14,13 +14,9 @@ library(progress)
 source("production/helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
-# model specifications I'll be using
-f_time <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
-
 # loading data
 load("predictions/preds-global.RData")
-cal <- read_csv("data/calendar.csv") %>% 
-  mutate(day = as.numeric(str_replace_all(d, "d_", "")))
+cal <- read_feather("data/data-calendar-clean.feather")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
@@ -31,6 +27,7 @@ store_coefs <- tibble(data.frame())
 pb <- progress_bar$new(total = length(unique(train_raw$store_id)))
 for(i in unique(train_raw$store_id)) {
   pb$tick()
+  
   dat_i <- train_raw %>% filter(store_id == i)
   
   # fitting models
@@ -57,19 +54,35 @@ for(i in unique(train_raw$store_id)) {
   store_coefs <- bind_rows(store_coefs, results_i)
 }
 
+# summary of results
+store_coefs %>% 
+  group_by(term) %>% 
+  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / se_non0^2, na.rm = T), 
+         sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / se_non0^2)), 
+         sd_within_non0 = sqrt(mean(se_non0^2, na.rm = T)), 
+         mu_sales = weighted.mean(estimate_sales, 1 / se_sales^2, na.rm = T), 
+         sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / se_sales^2)), 
+         sd_within_sales = sqrt(mean(se_sales^2, na.rm = T))) %>% 
+  mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
-store_coefs_regr <- store_coefs %>% 
+store_coefs_regr <- expand_grid(store_id = unique(train_raw$store_id), 
+                                term = unique(store_coefs$term)) %>%
+  left_join(store_coefs, by = c("store_id", "term")) %>% 
+  # applying RTTM
   group_by(term) %>% 
-  mutate(sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / se_non0^2)), 
-         sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / se_sales^2)), 
-         est_regr_non0 = apply_rttm(estimate_non0, se_non0, sd_between_non0), 
-         est_regr_sales = apply_rttm(estimate_sales, se_sales, sd_between_sales)) %>% 
+  mutate(mu_non0 = weighted.mean(estimate_non0, 1 / se_non0^2, na.rm = T), 
+         sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / se_non0^2)), 
+         mu_sales = weighted.mean(estimate_sales, 1 / se_sales^2, na.rm = T), 
+         sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / se_sales^2))) %>% 
+  mutate(est_regr_non0 = coalesce(apply_rttm(estimate_non0, se_non0, sd_between_non0, mu_non0), 0), 
+         est_regr_sales = coalesce(apply_rttm(estimate_sales, se_sales, sd_between_sales, mu_sales), 0)) %>% 
   ungroup() %>% 
   select(store_id, term, est_regr_non0, est_regr_sales) %>% 
   pivot_wider(names_from = term, values_from = c(est_regr_non0, est_regr_sales)) %>% 
   rename_with(str_replace_all, pattern = "est_regr_", replacement = "") %>% 
   mutate(across(where(is.numeric), round, digits = 4))
+
 
 # generating predictions -------------------------------------------------------
 
@@ -77,7 +90,9 @@ store_coefs_nested <- store_coefs_regr %>%
   group_by(store_id) %>% 
   nest(non0 = starts_with("non0_"), sales = starts_with("sales_"))
 store_preds <- expand_grid(store_id = unique(train_raw$store_id), day = pp_global$day) %>% 
-  left_join(pp_global, by = "day") %>% 
+  mutate(day2 = pmin(1941, day)) %>% 
+  left_join(pp_global, by = c("day2" = "day")) %>% 
+  select(-day2) %>% 
   group_by(store_id) %>% 
   nest(day = day, pp = starts_with("X")) %>% 
   left_join(store_coefs_nested, by = "store_id") %>% 

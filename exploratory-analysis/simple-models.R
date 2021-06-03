@@ -17,6 +17,8 @@
 # better idea: fit an mgcv smoother, then fit polynomials to the predictions from that???
 # probably a clever way to fit number of polynomials based on edf of smoother
 # TX_1/FOODS_1_218 probably needs a more complicated smoother
+# RX_1/FOODS_3_555 why not centered at 0?
+# could try a seasonal 1:365 effect rather than monthly
 
 library(arm)
 library(lme4)

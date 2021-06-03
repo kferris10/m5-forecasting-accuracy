@@ -40,14 +40,18 @@ for(i in unique(train_raw$store_id)) {
                                     off_data = off_dat_i, 
                                     off_data_non0_prefix = "lpred_non0_time_", 
                                     off_data_sales_prefix = "lpred_sales_time_")
-  m_non0_time_i <- glm(update(f_month, I(sales != 0) ~ .), 
-                       time_mod_data_i %>% filter(between(lp_non0_base, -7, 7)), 
-                       family = binomial(), 
-                       offset = lp_non0_base)
-  m_sales_time_i <- glm(update(f_month, sales ~ .), 
-                        time_mod_data_i %>% filter(sales > 0, between(lp_sales_base, -5, 5)), 
-                        family = poisson(), 
-                        offset = lp_sales_base)
+  m_non0_time_i <- time_mod_data_i %>% 
+    filter(between(lp_non0_base, -7, 7)) %>% 
+    glm(update(f_month, I(sales != 0) ~ .), 
+        data = ., 
+        family = binomial(), 
+        offset = lp_non0_base)
+  m_sales_time_i <- time_mod_data_i %>% 
+    filter(sales > 0, between(lp_sales_base, -8, 8)) %>%
+    glm(update(f_month, sales ~ .), 
+        data = ., 
+        family = poisson(), 
+        offset = lp_sales_base)
   
   # combining the results into a nice dataset
   results_i <- tidy(m_non0_time_i) %>% 
@@ -57,6 +61,16 @@ for(i in unique(train_raw$store_id)) {
   store_month_coefs <- bind_rows(store_month_coefs, results_i)
 }
 
+# summary of results
+store_month_coefs %>% 
+  group_by(term) %>% 
+  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
+            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
+            sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
+            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+  mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
 store_month_coefs_regr <- store_month_coefs %>% 

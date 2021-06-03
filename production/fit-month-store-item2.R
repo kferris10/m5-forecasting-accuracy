@@ -22,8 +22,7 @@ options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 f_month <- formula(~ 0 + factor(month))
 
 # loading data
-cal <- read_csv("data/calendar.csv") %>% 
-  mutate(day = as.numeric(str_replace_all(d, "d_", "")))
+cal <- read_feather("data/data-calendar-clean.feather")
 load("predictions/preds-global.RData")
 load("predictions/preds-time-all.RData")
 load("predictions/preds-month-store.RData")
@@ -49,9 +48,9 @@ registerDoParallel(cl)
 n <- nrow(train_raw)
 clusterExport(cl, c("n"))
 store_item_month_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
-  
   if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
   setTkProgressBar(pb, i)  
+  
 # if I need to test one at a time
 # store_item_month_coefs <- tibble(data.frame())
 # pb <- progress_bar$new(total = nrow(train_raw))
@@ -115,6 +114,17 @@ store_item_month_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom
 stopCluster(cl)
 stopImplicitCluster()
 gc()
+
+# summary of results
+store_item_month_coefs %>% 
+  group_by(term) %>% 
+  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
+            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
+            sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
+            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+  mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
 store_item_month_coefs_regr <- train_raw %>% 
@@ -180,7 +190,7 @@ preds_new <- preds_store_item_month %>%
                names_sep = "_store_item_", 
                names_transform = list(day = as.integer), 
                values_to = "effect") %>% 
-  left_join(select(cal, day, year, month), by = "day") %>% 
+  left_join(cal, by = "day") %>% 
   mutate(date = as.Date(paste(year, month, "15", sep = "-"))) %>% 
   select(store_id, item_id, date, type, effect) %>% 
   distinct()
@@ -191,15 +201,18 @@ qplot(date, effect, data = preds_new, geom = "line", colour = item_id) +
     
 # saving -----------------------------------------------------------------------
 
+# saving the full month effect
+load("predictions/preds-month-store.RData")
+load("predictions/preds-month-item.RData")
 preds_month <- bind_cols(
-  select(preds_base, 1:3), 
-  select(preds_base, starts_with("lpred")) + 
+  select(train_raw, 1:3), 
+  select(preds_store_month, starts_with("lpred")) + 
+    select(preds_item_month, starts_with("lpred")) + 
     select(preds_store_item_month, starts_with("lpred"))
 ) %>% 
-  mutate(across(where(is.numeric), round, digits = 4)) %>% 
-  rename_with(str_replace_all, pattern = "_store_item_", replacement = "_month_") %>% 
-  rename_with(str_replace_all, pattern = "_store_", replacement = "_month_") %>% 
-  rename_with(str_replace_all, pattern = "_item_", replacement = "_month_")
+  rename_with(str_replace_all, pattern = "_store_item_", replacement = "_") %>% 
+  rename_with(str_replace_all, pattern = "_store_", replacement = "_") %>% 
+  rename_with(str_replace_all, pattern = "_item_", replacement = "_")
 
 
 save(store_item_month_coefs_regr, file = "fitted-models/models-month-store-item.RData")
