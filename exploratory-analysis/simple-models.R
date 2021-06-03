@@ -19,6 +19,7 @@
 # TX_1/FOODS_1_218 probably needs a more complicated smoother
 # RX_1/FOODS_3_555 why not centered at 0?
 # could try a seasonal 1:365 effect rather than monthly
+# correlation between non0 and sales effects?  some sort of pooling htere...
 
 library(arm)
 library(lme4)
