@@ -13,35 +13,17 @@ library(progress)
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
+load("predictions/preds-all.RData")
 cal <- read_csv("data/calendar.csv") %>% 
   mutate(day = as.numeric(str_replace_all(d, "d_", ""))) %>% 
   select(date, day, year, month, weekday)
-load("predictions/preds-global.RData")
-load("predictions/preds-time-all.RData")
-load("predictions/preds-month-all.RData")
-load("predictions/preds-weekday-all.RData")
 train_raw <- read_feather("data/data-train-wide.feather") %>% 
   # just using post-2012 for simplicity
   select(-(d_1:d_337))
 train_raw %>% select(1:20) %>% glimpse()
 
-# setting up the baseline predictions in wide format for each row
-preds_global_wide <- preds_global %>% 
-  pivot_wider(names_from = day, 
-              values_from = c(lp_non0_base, lp_sales_base)) %>% 
-  slice(rep(1, nrow(train_raw))) %>% 
-  bind_cols(select(train_raw, ends_with("id")), .)
-
-
 # generating overal predictions
-preds <- bind_cols(
-  select(preds_global_wide, ends_with("id")), 
-  select(preds_global_wide, -ends_with("id")) + 
-    select(preds_time, -ends_with("id")) + 
-    select(preds_month, -ends_with("id")) + 
-    select(preds_weekday, -ends_with("id"))
-) %>% 
-  rename_with(str_replace_all, pattern = "_base", replacement = "") %>% 
+preds <- preds %>% 
   # just using post-2012 for simplicity
   select(-(lp_non0_1:lp_non0_337), -(lp_non0_1942:lp_non0_1969), 
          -c(lp_non0_331, lp_non0_697, lp_non0_1062, lp_non0_1427, lp_non0_1792), 
@@ -49,9 +31,6 @@ preds <- bind_cols(
          -(lp_sales_1:lp_sales_337), -(lp_sales_1942:lp_sales_1969), 
          -c(lp_sales_331, lp_sales_697, lp_sales_1062, lp_sales_1427, lp_sales_1792), 
          -c(lp_sales_300, lp_sales_664, lp_sales_1035, lp_sales_1399, lp_sales_1763))
-rm(pp_global, preds_global, preds_global_wide, 
-   preds_time, preds_month, preds_weekday)
-gc()
 
 # totals
 act <- select(train_raw, starts_with("d_"))
