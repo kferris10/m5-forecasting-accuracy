@@ -37,7 +37,7 @@ for(i in unique(train_raw$store_id)) {
   pb$tick()
   
   dat_i <- train_raw %>% filter(store_id == i)
-  off_dat_i <- preds_time %>% filter(store_id == i)
+  off_dat_i <- preds_base %>% filter(store_id == i)
   
   # fitting the models
   time_mod_data_i <- prep_time_data(dat_i, 
