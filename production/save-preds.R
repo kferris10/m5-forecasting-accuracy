@@ -7,6 +7,7 @@ load("predictions/preds-global.RData")
 load("predictions/preds-time-all.RData")
 load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
+load("predictions/preds-snap-all.RData")
 
 # generating predictions ------------------------------------------------------
 
@@ -24,7 +25,8 @@ preds <- bind_cols(
   select(preds_global_wide, -ends_with("id")) + 
     select(preds_time, -ends_with("id")) + 
     select(preds_month, -ends_with("id")) + 
-    select(preds_weekday, -ends_with("id"))
+    select(preds_weekday, -ends_with("id")) + 
+    select(preds_snap, -ends_with("id"))
 ) %>% 
   rename_with(str_replace_all, pattern = "_base", replacement = "")
 
@@ -104,8 +106,8 @@ preds_evaluation <- preds %>%
   select(id, F1:F28) %>% 
   # need to be careful here - shouldn't be doing this with NAs
   # but HOUSEHOLD_2_162 is annohing
-  mutate(across(F1:F28, ~ coalesce(., 0))) %>% 
-  mutate(across(where(is.numeric), round, digits = 1))
+  mutate(across(F1:F28, ~ coalesce(., 0.1))) %>% 
+  mutate(across(where(is.numeric), round, digits = 4))
 
 preds_submission <- bind_rows(preds_validation, preds_evaluation)
 

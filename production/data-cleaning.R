@@ -73,7 +73,7 @@ save_dat <- train_eval %>%
 # cleaner calendar
 cal_df <- cal %>% 
   mutate(day = as.numeric(str_replace_all(d, "d_", ""))) %>% 
-  select(year, month, date, day, weekday)
+  select(year, month, date, day, weekday, event_name_1, snap_CA, snap_TX, snap_WI)
 
 # saving as feather files
 # hadley says that they are fast and he's THE MAN so...

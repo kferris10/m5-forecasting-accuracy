@@ -26,10 +26,11 @@ pp <- poly(1:1969, degrees = 10)
 
 # large enough sample I can just throw everything in here
 f_base <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + 
-                    factor(month) + weekday)
+                    factor(month) + weekday + snap_CA + snap_TX + snap_WI)
 f_time <- formula(~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
 f_month <- formula(~ 0 + factor(month))
 f_weekday <- formula(~ 0 + weekday)
+f_snap <- formula(~ 0 + factor(is_snap))
 
 # aggregate by day and convert to long format for modeling
 train_dat <- train_raw %>% 
@@ -137,4 +138,4 @@ pp_global <- tibble(day = 1:1969) %>%
   mutate(across(where(is.numeric), round, digits = 6))
 
 save(m_non0_base, m_sales_base, pp, file = "fitted-models/models-global.RData")
-save(pp_global, preds_global, f_time, f_month, f_weekday, file = "predictions/preds-global.RData")
+save(pp_global, preds_global, f_time, f_month, f_weekday, f_snap, file = "predictions/preds-global.RData")

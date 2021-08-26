@@ -45,7 +45,11 @@ prep_time_data <- function(data,
                  values_drop_na = TRUE) %>% 
     left_join(pp_global, by = "day") %>% 
     left_join(preds_global, by = "day") %>% 
-    left_join(cal, by = "day")
+    left_join(cal, by = "day") %>% 
+    mutate(is_snap = case_when(store_id %in% c("CA_1", "CA_2", "CA_3", "CA_4") & snap_CA == 1 ~ 1, 
+                               store_id %in% c("TX_1", "TX_2", "TX_3") & snap_TX == 1 ~ 1, 
+                               store_id %in% c("WI_1", "WI_2", "WI_3") & snap_WI == 1 ~ 1, 
+                               TRUE ~ 0))
   
   if(!is.null(off_data)) {
     off_data_non0_use <- off_data %>%  
