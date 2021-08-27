@@ -5,5 +5,5 @@ Playing around with Kaggle's [M5 Forecasting challenge](https://www.kaggle.com/c
 ## Results
 
 - 6/4 Initial submission: #500.  Not bad!
-- 8/26 Add in snap effects: Top 150
-
+- 8/26 Add in snap effects: Top 120
+- 8/26 Add a global AR(1): #102
