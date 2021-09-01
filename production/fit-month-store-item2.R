@@ -160,7 +160,7 @@ store_item_month_coefs_nested <- store_item_month_coefs_regr %>%
 # Hadley's nested data approach seems to have a ways to go
 preds_store_item_month <- expand_grid(store_id = unique(train_raw$store_id), 
                                 item_id = unique(train_raw$item_id), 
-                                day = pp_global$day) %>% 
+                                day = cal$day) %>% 
   left_join(cal %>% select(day, month), by = "day") %>% 
   mutate(month = factor(month, levels = 1:12)) %>% 
   group_by(store_id, item_id) %>% 

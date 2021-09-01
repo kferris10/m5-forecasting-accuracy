@@ -43,7 +43,6 @@ prep_time_data <- function(data,
                  names_transform = list(day = as.numeric), 
                  values_to = "sales", 
                  values_drop_na = TRUE) %>% 
-    left_join(pp_global, by = "day") %>% 
     left_join(preds_global, by = "day") %>% 
     left_join(cal, by = "day") %>% 
     mutate(is_snap = case_when(store_id %in% c("CA_1", "CA_2", "CA_3", "CA_4") & snap_CA == 1 ~ 1, 

@@ -12,7 +12,7 @@ library(tidyverse)
 library(broom)
 library(progress)
 source("production/helper-funs.R")
-options(stringsAsFactors = F, digits = 3, mc.cores = 4)
+options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
 cal <- read_feather("data/data-calendar-clean.feather")

@@ -71,7 +71,7 @@ store_item_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mg
         family = binomial(), 
         offset = lp_non0_base)
   gam_sales_i <- time_mod_data_i %>% 
-    filter(sales > 0, between_lp_sales_base, -8, 8) %>% 
+    filter(sales > 0, between(lp_sales_base, -8, 8)) %>% 
     gam(sales ~ s(day, bs = "ts", k = k), 
         data = ., 
         family = poisson(), 
@@ -82,11 +82,11 @@ store_item_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mg
   time_mod_data_i$gam_se_sales <- as.numeric(predict(gam_sales_i, newdata = time_mod_data_i, se.fit = TRUE)$se.fit)
   time_mod_data_i$gam_non0 <- rnorm(nrow(time_mod_data_i), time_mod_data_i$gam_pred_non0, time_mod_data_i$gam_se_non0)
   time_mod_data_i$gam_sales <- rnorm(nrow(time_mod_data_i), time_mod_data_i$gam_pred_sales, time_mod_data_i$gam_se_sales)
-  
+
   # calculating polynomial approximations of the gams
   m_non0_time_i <- lm(update(f_time, gam_non0 ~ .), time_mod_data_i)
   m_sales_time_i <- lm(update(f_time, gam_sales ~ .), data = time_mod_data_i %>% filter(sales > 0))
-  
+
   # applying reasonable priors
   j <- length(coef(m_non0_time_i))
   results_non0_i <- apply_rttm_mvn(m_non0_time_i, rep(0, j), diag(25, j, j))

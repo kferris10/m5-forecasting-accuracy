@@ -15,9 +15,6 @@ library(doParallel)
 source("production/helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
-# model specifications I'll be using
-f_month <- formula(~ 0 + factor(month))
-
 # loading data
 cal <- read_csv("data/calendar.csv") %>% 
   mutate(day = as.numeric(str_replace_all(d, "d_", "")))
