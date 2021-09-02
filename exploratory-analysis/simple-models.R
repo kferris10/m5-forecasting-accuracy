@@ -11,6 +11,8 @@
 # could try a seasonal 1:365 effect rather than monthly
 # correlation between non0 and sales effects?  some sort of pooling htere...
 # is something off with snaps?  why are store snap=1 pos but negative for items
+# fix intercept for snap?
+# mday event-items coefs get wonky
 
 library(arm)
 library(lme4)

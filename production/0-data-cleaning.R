@@ -72,8 +72,62 @@ save_dat <- train_eval %>%
 
 # cleaner calendar
 cal_df <- cal %>% 
-  mutate(day = as.numeric(str_replace_all(d, "d_", ""))) %>% 
-  select(year, month, date, day, weekday, event_name_1, snap_CA, snap_TX, snap_WI)
+  # manually creating indicators for a bunch of days
+  mutate(
+    day = as.numeric(str_replace_all(d, "d_", "")), 
+    event1 = coalesce(event_name_1, ""), 
+    event2 = coalesce(event_name_2, ""), 
+    is_easter = ifelse(event1 == "Easter" | event2 == "Easter", 1, 0), 
+    is_cinco = ifelse(event1 == "Cinco De Mayo" | event2 == "Cinco De Mayo", 1, 0), 
+    is_fday = ifelse(event1 == "Father's day" | event2 == "Father's day", 1, 0), 
+    # skipping a bunch of holiday???
+    mem = ifelse(event1 == "MemorialDay", 1, 0), 
+    mem_p1 = ifelse(lead(event1, 1, default = "") == "MemorialDay", 1, 0), 
+    mem_p2 = ifelse(lead(event1, 2, default = "") == "MemorialDay", 1, 0), 
+    mem_m1 = ifelse(lag(event1, 1, default = "") == "MemorialDay", 1, 0),  
+    mem_m2 = ifelse(lag(event1, 2, default = "") == "MemorialDay", 1, 0),  
+    mem_m3 = ifelse(lag(event1, 3, default = "") == "MemorialDay", 1, 0),  
+    mem_m8 = ifelse(lag(event1, 8, default = "") == "MemorialDay", 1, 0),  
+    mem_m9 = ifelse(lag(event1, 9, default = "") == "MemorialDay", 1, 0), 
+    mday = ifelse(event1 == "Mother's day", 1, 0), 
+    mday_p1 = ifelse(lead(event1, 1, default = "") == "Mother's day", 1, 0), 
+    mday_p2 = ifelse(lead(event1, 2, default = "") == "Mother's day", 1, 0), 
+    mday_m1 = ifelse(lag(event1, 1, default = "") == "Mother's day", 1, 0),  
+    mday_m2 = ifelse(lag(event1, 2, default = "") == "Mother's day", 1, 0), 
+    sb = ifelse(event1 == "SuperBowl", 1, 0), 
+    sb_p1 = ifelse(lead(event1, 1, default = "") == "SuperBowl", 1, 0), 
+    sb_p2 = ifelse(lead(event1, 2, default = "") == "SuperBowl", 1, 0), 
+    sb_m1 = ifelse(lag(event1, 1, default = "") == "SuperBowl", 1, 0), 
+    sb_m2 = ifelse(lag(event1, 2, default = "") == "SuperBowl", 1, 0), 
+    sb_m3 = ifelse(lag(event1, 3, default = "") == "SuperBowl", 1, 0), 
+    stpats = ifelse(event1 == "StPatricksDay", 1, 0), 
+    vday = ifelse(event1 == "ValentinesDay", 1, 0), 
+    cinco = ifelse(is_cinco, 1, 0), 
+    cinco_p1 = ifelse(lead(is_cinco, 1, default = T), 1, 0), 
+    cinco_p2 = ifelse(lead(is_cinco, 2, default = T), 1, 0), 
+    cinco_m1 = ifelse(lag(is_cinco, 1, default = T), 1, 0), 
+    cinco_m2 = ifelse(lag(is_cinco, 2, default = T), 1, 0), 
+    columbus = ifelse(event1 == "ColumbusDay", 1, 0), 
+    easter = ifelse(is_easter, 1, 0), 
+    easter_p1 = ifelse(lead(is_easter, 1, default = T), 1, 0), 
+    easter_p2 = ifelse(lead(is_easter, 2, default = T), 1, 0), 
+    easter_m1 = ifelse(lag(is_easter, 1, default = T), 1, 0), 
+    easter_m2 = ifelse(lag(is_easter, 2, default = T), 1, 0), 
+    hallo = ifelse(event1 == "Halloween", 1, 0), 
+    ind = ifelse(event1 == "IndependenceDay", 1, 0), 
+    labor = ifelse(event1 == "LaborDay", 1, 0), 
+    mlk = ifelse(event1 == "MartinLutherKingDay", 1, 0), 
+    mlk_p1 = ifelse(lead(event1, 1, default = "") == "MartinLutherKingDay", 1, 0), 
+    mlk_m1 = ifelse(lag(event1, 1, default = "") == "MartinLutherKingDay", 1, 0), 
+    mlk_m2 = ifelse(lag(event1, 2, default = "") == "MartinLutherKingDay", 1, 0), 
+    vet = ifelse(event1 == "VeteransDay", 1, 0), 
+    fday = ifelse(is_fday, 1, 0), 
+    fday_p1 = ifelse(lead(is_fday, 1, default = T), 1, 0), 
+    fday_p2 = ifelse(lead(is_fday, 2, default = T), 1, 0), 
+    fday_m1 = ifelse(lag(is_fday, 1, default = T), 1, 0), 
+    fday_m2 = ifelse(lag(is_fday, 2, default = T), 1, 0)
+  ) %>% 
+  select(year, month, date, day, weekday, event1, snap_CA, snap_TX, snap_WI, mem:fday_m2)
 
 # saving as feather files
 # hadley says that they are fast and he's THE MAN so...

@@ -15,6 +15,7 @@ library(tidyverse)
 library(broom)
 library(mgcv)
 source("production/helper-funs.R")
+options(stringsAsFactors = F, digits = 3, show.signif.stars = F)
 set.seed(314)
 
 cal <- read_feather("data/data-calendar-clean.feather")
@@ -24,11 +25,29 @@ train_raw %>% select(1:20) %>% glimpse()
 
 # large enough sample I can just throw everything in here
 f_base <- formula(~ s(day, k = 10, bs = "ts") + 
-                    factor(month) + weekday + snap_CA + snap_TX + snap_WI)
+                    factor(month) + weekday + 
+                    snap_CA + snap_TX + snap_WI + 
+                    mem + mem_p1 + mem_p2 + mem_m1 + mem_m2 + mem_m3 + mem_m8 + mem_m9 + 
+                    mday + mday_p1 + mday_p2 + mday_m1 + mday_m2 + 
+                    stpats + vday + columbus + hallo + ind + labor + vet + 
+                    sb + sb_p1 + sb_p2 + sb_m1 + sb_m2 + sb_m3 + 
+                    cinco + cinco_p1 + cinco_p2 + cinco_m1 + cinco_m2 + 
+                    easter + easter_p1 + easter_p2 + easter_m1 + easter_m2 + 
+                    mlk + mlk_p1 + mlk_m1 + mlk_m2 + 
+                    fday + fday_p1 + fday_p2 + fday_m1 + fday_m2)
 f_time <- formula(~ s(day, k = 8, bs = "ts"))
 f_month <- formula(~ 0 + factor(month))
 f_weekday <- formula(~ 0 + weekday)
 f_snap <- formula(~ 0 + factor(is_snap))
+f_event <- formula(~0 + 
+                     mem + mem_p1 + mem_p2 + mem_m1 + mem_m2 + mem_m3 + mem_m8 + mem_m9 + 
+                     mday + mday_p1 + mday_p2 + mday_m1 + mday_m2 + 
+                     stpats + vday + columbus + hallo + ind + labor + vet + 
+                     sb + sb_p1 + sb_p2 + sb_m1 + sb_m2 + sb_m3 + 
+                     cinco + cinco_p1 + cinco_p2 + cinco_m1 + cinco_m2 + 
+                     easter + easter_p1 + easter_p2 + easter_m1 + easter_m2 + 
+                     mlk + mlk_p1 + mlk_m1 + mlk_m2 + 
+                     fday + fday_p1 + fday_p2 + fday_m1 + fday_m2)
 
 # aggregate by day and convert to long format for modeling
 train_dat <- train_raw %>% 
@@ -96,7 +115,7 @@ preds_global <- tibble(day = 1:1969) %>%
   left_join(cal, by = c("day")) %>% 
   # cute hack to be very careful extrapolatin
   mutate(day_raw = day, 
-         day = pmin(2000, day)) %>% 
+         day = pmin(1941, day)) %>% 
   mutate(lp_non0_base = predict(m_non0_base, newdata = .), 
          lp_sales_base = predict(m_sales_base, newdata = .)) %>% 
   mutate(day = day_raw) %>% 
@@ -108,4 +127,5 @@ qplot(day, arm::invlogit(lp_non0_base) * exp(lp_sales_base), data = preds_global
 
 
 save(m_non0_base, m_sales_base, file = "fitted-models/models-global.RData")
-save(preds_global, f_time, f_month, f_weekday, f_snap, file = "predictions/preds-global.RData")
+save(preds_global, f_time, f_month, f_weekday, f_snap, f_event, 
+     file = "predictions/preds-global.RData")

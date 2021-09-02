@@ -8,6 +8,7 @@ load("predictions/preds-time-all.RData")
 load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
 load("predictions/preds-snap-all.RData")
+# load("predictions/preds-event-all.RData")
 
 # generating predictions ------------------------------------------------------
 
@@ -18,15 +19,21 @@ preds_global_wide <- preds_global %>%
   slice(rep(1, nrow(preds_time))) %>% 
   bind_cols(select(preds_time, ends_with("id")), .)
 
+preds_time_month_wday_snap <- bind_cols(
+  select(preds_time, ends_with("id")), 
+  select(preds_time, -ends_with("id")) + 
+    select(preds_month, -ends_with("id")) + 
+    select(preds_weekday, -ends_with("id")) + 
+    select(preds_snap, -ends_with("id"))
+) %>% 
+  rename_with(str_replace_all, pattern = "_time", replacement = "_base") %>% 
+  mutate(across(where(is.numeric), round, digits = 4))
 
 # generating overal predictions
 preds <- bind_cols(
   select(preds_global_wide, ends_with("id")), 
   select(preds_global_wide, -ends_with("id")) + 
-    select(preds_time, -ends_with("id")) + 
-    select(preds_month, -ends_with("id")) + 
-    select(preds_weekday, -ends_with("id")) + 
-    select(preds_snap, -ends_with("id"))
+    select(preds_time_month_wday_snap, -ends_with("id"))
 ) %>% 
   rename_with(str_replace_all, pattern = "_base", replacement = "")
 
@@ -81,7 +88,7 @@ preds_evaluation <- preds %>%
     F5 = invlogit(lp_non0_1946) * exp(lp_sales_1946), 
     F6 = invlogit(lp_non0_1947) * exp(lp_sales_1947), 
     F7 = invlogit(lp_non0_1948) * exp(lp_sales_1948), 
-    F8 = invlogit(lp_non0_1949) * exp(lp_sales_1949), 
+    F8 = invlogit(lp_non0_1949) * exp(lp_sales_1949),
     F9 = invlogit(lp_non0_1950) * exp(lp_sales_1950), 
     F10 = invlogit(lp_non0_1951) * exp(lp_sales_1951), 
     F11 = invlogit(lp_non0_1952) * exp(lp_sales_1952), 
@@ -113,6 +120,7 @@ preds_submission <- bind_rows(preds_validation, preds_evaluation)
 
 # saving -----------------------------------------------------------------------
 
+save(preds_time_month_wday_snap, file = "predictions/preds-time-month-wday-snap.RData")
 save(preds, file = "predictions/preds-all.RData")
 save(preds_submission, file = paste0("predictions/preds-submission-", Sys.Date(), ".RData"))
 write.csv(preds_submission, file = "predictions/preds-submission.csv", quote = F, row.names = F)
