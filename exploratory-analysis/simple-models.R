@@ -13,6 +13,7 @@
 # is something off with snaps?  why are store snap=1 pos but negative for items
 # fix intercept for snap?
 # mday event-items coefs get wonky
+# adjust for trends in price over time, add lags (recent changes in price)
 
 library(arm)
 library(lme4)

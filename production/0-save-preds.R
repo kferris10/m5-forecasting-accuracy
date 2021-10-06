@@ -9,6 +9,7 @@ load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
 load("predictions/preds-snap-all.RData")
 # load("predictions/preds-event-all.RData")
+load("predictions/preds-price-all.RData")
 
 # generating predictions ------------------------------------------------------
 
@@ -33,7 +34,8 @@ preds_time_month_wday_snap <- bind_cols(
 preds <- bind_cols(
   select(preds_global_wide, ends_with("id")), 
   select(preds_global_wide, -ends_with("id")) + 
-    select(preds_time_month_wday_snap, -ends_with("id"))
+    select(preds_time_month_wday_snap, -ends_with("id")) + 
+    select(preds_price, -ends_with("id"))
 ) %>% 
   rename_with(str_replace_all, pattern = "_base", replacement = "")
 
