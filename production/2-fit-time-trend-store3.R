@@ -12,7 +12,7 @@ library(tidyverse)
 library(broom)
 library(mgcv)
 library(progress)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data

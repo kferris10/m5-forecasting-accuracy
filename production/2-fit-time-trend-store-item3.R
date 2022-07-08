@@ -13,7 +13,7 @@ library(progress)
 library(foreach)
 library(doParallel)
 library(tcltk)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 2)
 
 # loading data
@@ -37,19 +37,19 @@ gc()
 
 
 #setup parallel backend to use many processors
-cl <- makeCluster(getOption("mc.cores"))
-registerDoParallel(cl)
-n <- nrow(train_raw)
-clusterExport(cl, c("n"))
-store_item_preds <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mgcv", "tcltk"), .combine=rbind) %dopar% {
-  if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
-  setTkProgressBar(pb, i)
+# cl <- makeCluster(getOption("mc.cores"))
+# registerDoParallel(cl)
+# n <- nrow(train_raw)
+# clusterExport(cl, c("n"))
+# store_item_preds <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mgcv", "tcltk"), .combine=rbind) %dopar% {
+#   if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
+#   setTkProgressBar(pb, i)
   
 
-# store_item_preds <- tibble(data.frame())
-# pb <- progress_bar$new(total = nrow(train_raw)-29998)
-# for(i in 1:nrow(train_raw)) {
-#   pb$tick()
+store_item_preds <- tibble(data.frame())
+pb <- progress_bar$new(total = nrow(train_raw))
+for(i in 1:nrow(train_raw)) {
+  pb$tick()
   
   gc()
   item_i <- train_raw$item_id[i]
@@ -85,15 +85,15 @@ store_item_preds <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "mg
     select(-day_raw) %>% 
     pivot_wider(names_from = day, values_from = c(lpred_non0_store_item, lpred_sales_store_item))
 
-  # store_item_preds <- bind_rows(store_item_preds, store_item_preds_i)
-# }
-
-  store_item_preds_i
+store_item_preds <- bind_rows(store_item_preds, store_item_preds_i)
 }
-# closing the clusters
-stopCluster(cl)
-stopImplicitCluster()
-gc()
+
+#   store_item_preds_i
+# }
+# # closing the clusters
+# stopCluster(cl)
+# stopImplicitCluster()
+# gc()
 
 preds_store_item_time <- train_raw %>% 
   select(id, item_id, store_id) %>% 
@@ -125,9 +125,9 @@ bind_cols(preds_store_item_time %>% select(1:3),
   # inner_join(train_262, by = c("id", "day"), suffix = c("", "_act")) %>%
   # mutate(total_sales = cumsum(sales_act),
   #        total_pred = cumsum(pred_sales)) %>%
+  # qplot(total_pred, total_sales, data = .) + geom_abline()
   sample_frac(.2) %>%
   qplot(day, pred_sales, data = ., colour = item_id, geom = "line") +
-  # qplot(total_pred, total_sales, data = .) + geom_abline()
   geom_vline(aes(xintercept = 1941))
 
 # saving -----------------------------------------------------------------------

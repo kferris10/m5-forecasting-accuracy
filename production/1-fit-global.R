@@ -14,7 +14,7 @@ library(Hmisc)
 library(tidyverse)
 library(broom)
 library(mgcv)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, show.signif.stars = F)
 set.seed(314)
 

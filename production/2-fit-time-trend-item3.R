@@ -13,7 +13,7 @@ library(progress)
 library(foreach)
 library(doParallel)
 library(tcltk)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
@@ -106,12 +106,12 @@ preds_item_time %>%
                names_transform = list(day = as.integer)) %>% 
   left_join(preds_global, by = c("day")) %>% 
   mutate(pred_sales = arm::invlogit(non0 + lp_non0_base) * exp(sales + lp_sales_base)) %>% 
-  # inner_join(train_262, by = c("id", "day"), suffix = c("", "_act")) %>% 
-  # mutate(total_sales = cumsum(sales_act), 
-  #        total_pred = cumsum(pred_sales)) %>% 
+  # inner_join(train_262, by = c("id", "day"), suffix = c("", "_act")) %>%
+  # mutate(total_sales = cumsum(sales_act),
+  #        total_pred = cumsum(pred_sales)) %>%
   sample_frac(.2) %>%
-  qplot(day, pred_sales, data = ., colour = item_id, geom = "line") +
   # qplot(total_pred, total_sales, data = .) + geom_abline()
+  qplot(day, pred_sales, data = ., colour = item_id, geom = "line") +
   geom_vline(aes(xintercept = 1941))
 
 # saving -----------------------------------------------------------------------
