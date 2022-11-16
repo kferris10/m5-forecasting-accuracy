@@ -18,18 +18,18 @@ options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 cal <- read_feather("data/data-calendar-clean.feather")
 prices <- read_feather("data/data-price-clean.feather")
 load("predictions/preds-global.RData")
-load("predictions/preds-time-month-wday-snap.RData")
+load("predictions/preds-time-month-wday-snap-event.RData")
 load("predictions/preds-price-item.RData")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # setting up the baseline time predictions
 preds_base <- bind_cols(
-  select(preds_time_month_wday_snap, ends_with("id")), 
-  select(preds_time_month_wday_snap, -ends_with("id")) + 
+  select(preds_time_month_wday_snap_event, ends_with("id")), 
+  select(preds_time_month_wday_snap_event, -ends_with("id")) + 
     select(preds_item_price, -ends_with("id"))
 )
-rm(preds_time_month_wday_snap, preds_item_price)
+rm(preds_time_month_wday_snap_event, preds_item_price)
 gc()
 
 # fitting by item -------------------------------------------------------------
@@ -63,7 +63,8 @@ for(i in 1:nrow(train_raw)) {
   non0_mod_data <- mod_data_i %>% 
     filter(between(lp_non0_base, -7, 7)) %>% 
     filter(sum(sales == 0) > 0, 
-           sum(sales != 0) > 0)
+           sum(sales != 0) > 0) %>% 
+    filter(n_distinct(price_z) > 1)
   cf_non0 <- if(nrow(non0_mod_data) > 2) {
     m_non0_time_i <- glm(I(sales != 0) ~ price_z, 
                          non0_mod_data, 
@@ -80,7 +81,8 @@ for(i in 1:nrow(train_raw)) {
   # sales modes
   sales_mod_data <- mod_data_i %>% 
     filter(sales > 0, 
-           between(lp_sales_base, -7, 7))
+           between(lp_sales_base, -7, 7)) %>% 
+    filter(n_distinct(price_z) > 1)
   cf_sales <- if(nrow(sales_mod_data) > 2) {
     m_sales_time_i <- glm(sales ~ price_z, 
                           sales_mod_data, 
@@ -111,13 +113,16 @@ for(i in 1:nrow(train_raw)) {
 
 # summary of results
 store_item_price_coefs %>% 
+  filter(between(estimate_non0, -1e5, 1e5)) %>% 
   group_by(term) %>% 
   summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
             sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
             sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_non0, na.rm = T), 
             mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
             sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+            sd_within_sales_med = median(std.error_sales, na.rm = T)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

@@ -12,17 +12,16 @@ library(mgcv)
 library(progress)
 library(foreach)
 library(doParallel)
-library(tcltk)
 source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 2)
 
 # loading data
-load("predictions/preds-global.RData")
-load("predictions/preds-time-store.RData")
-load("predictions/preds-time-item.RData")
 cal <- read_feather("data/data-calendar-clean.feather")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
+load("predictions/preds-global.RData")
+load("predictions/preds-time-store.RData")
+load("predictions/preds-time-item.RData")
 
 # setting up the baseline time predictions
 preds_time0 <- bind_cols(
@@ -65,7 +64,7 @@ for(i in 1:nrow(train_raw)) {
                                     off_data_sales_prefix = "lpred_sales_item_")
   
   # fitting models
-  k_use <- ifelse(i %in% c(2966, 26924), 6, 8)
+  k_use <- ifelse(i %in% c(2966, 26710, 26924), 6, 8)
   m_non0_time_i <- gam(I(sales != 0) ~ s(day, k = k_use, bs = "ts"), 
                        data = time_mod_data_i, 
                        family = binomial(), 

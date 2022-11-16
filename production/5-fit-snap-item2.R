@@ -1,7 +1,7 @@
 
 # notes ------------------------------------------------------------------------
 
-# calculating time trend coefficients for each store
+# calculating coefficients on snap effects for each item
 # this takes ~20 minutes
 
 # setup ------------------------------------------------------------------------
@@ -11,18 +11,18 @@ library(Hmisc)
 library(tidyverse)
 library(broom)
 library(progress)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
 cal <- read_feather("data/data-calendar-clean.feather")
+train_raw <- read_feather("data/data-train-wide.feather")
+train_raw %>% select(1:20) %>% glimpse()
 load("predictions/preds-global.RData")
 load("predictions/preds-time-all.RData")
 load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
 load("predictions/preds-snap-store.RData")
-train_raw <- read_feather("data/data-train-wide.feather")
-train_raw %>% select(1:20) %>% glimpse()
 
 # setting up the baseline time predictions
 preds_base <- bind_cols(

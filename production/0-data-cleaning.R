@@ -8,6 +8,7 @@
 library(tidyverse)
 library(feather)
 library(pbapply)
+library(mgcv)
 
 cal <- read_csv("data/calendar.csv")
 prices <- read_csv("data/sell_prices.csv")
@@ -136,11 +137,17 @@ zscore_prices <- function(prices) {
   df <- data.frame(price = prices) %>% 
     mutate(day = 1:n()) 
   
-  m2 <- gam(price ~ s(day, k = 5, bs = "ts"), data = df)
-  result <- df %>% 
-    mutate(r = price - as.numeric(predict(m2, newdata = .)), 
-           z = coalesce((r - mean(r, na.rm = T)) / sd(r, na.rm = T)))
-  round(result$z, 2)
+  result <- if(nrow(df) > 1 & n_distinct(prices) > 1) {
+    m2 <- gam(price ~ s(day, k = 5, bs = "ts"), data = df)
+    adjusted <- df %>% 
+      mutate(r = price - as.numeric(predict(m2, newdata = .)), 
+             z = coalesce((r - mean(r, na.rm = T)) / sd(r, na.rm = T)))
+    round(adjusted$z, 2)
+  } else {
+    rep(0, length(prices))
+  }
+  
+  return(result)
 }
 
 # transform into a dataset with columns for price on each day
@@ -152,12 +159,13 @@ price_wide <- cal_df %>%
   arrange(store_id, item_id)
 
 # turn prices into z-scores
-price_z <- data.frame(t(
+price_z <- tibble(data.frame(t(
   pbapply(price_wide[, -c(1, 2)], 1, zscore_prices)
-  ))
+)))
 
 save_price <- save_dat %>% 
   select(id, item_id, store_id) %>% 
+  arrange(store_id, item_id) %>% 
   bind_cols(price_z)
   
 

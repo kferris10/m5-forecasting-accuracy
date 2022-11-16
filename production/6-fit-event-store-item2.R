@@ -11,10 +11,10 @@ library(Hmisc)
 library(tidyverse)
 library(broom)
 library(progress)
-library(foreach)
-library(iterators)
-library(doParallel)
-library(tcltk)
+# library(foreach)
+# library(iterators)
+# library(doParallel)
+# library(tcltk)
 source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 2)
 
@@ -25,30 +25,36 @@ train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
 
 # setting up the baseline predictions
-load("predictions/preds-all.RData")
+load("predictions/preds-time-month-wday-snap.RData")
 load("predictions/preds-event-store.RData")
 load("predictions/preds-event-item.RData")
 
 # setting up the baseline time predictions
 preds_base <- bind_cols(
-  select(preds, ends_with("id")), 
-  select(preds, -ends_with("id")) + 
+  select(preds_time_month_wday_snap, ends_with("id")), 
+  select(preds_time_month_wday_snap, -ends_with("id")) + 
     select(preds_store_event, -ends_with("id")) + 
     select(preds_item_event, -ends_with("id"))
 )
-rm(preds, preds_store_event, preds_item_event)
+rm(preds_time_month_wday_snap, preds_store_event, preds_item_event)
 gc()
 
 # fitting by item -------------------------------------------------------------
 
 #setup parallel backend to use many processors
-cl <- makeCluster(getOption("mc.cores"))
-registerDoParallel(cl)
-n <- nrow(train_raw)
-clusterExport(cl, c("n"))
-store_item_event_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
-  if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
-  setTkProgressBar(pb, i)  
+# cl <- makeCluster(getOption("mc.cores"))
+# registerDoParallel(cl)
+# n <- nrow(train_raw)
+# clusterExport(cl, c("n"))
+# store_item_event_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
+#   if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
+#   setTkProgressBar(pb, i)  
+
+# if I need to test one at a time
+store_item_event_coefs <- tibble(data.frame())
+pb <- progress_bar$new(total = nrow(train_raw))
+for(i in 1:nrow(train_raw)) {
+  pb$tick()
   
   store_i <- train_raw$store_id[i]
   item_i <- train_raw$item_id[i]
@@ -59,8 +65,8 @@ store_item_event_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom
   # ith dataset
   mod_data_i <- prep_time_data(dat_i, 
                                off_data = off_dat_i, 
-                               off_data_non0_prefix = "lp_non0_", 
-                               off_data_sales_prefix = "lp_sales_")
+                               off_data_non0_prefix = "lpred_non0_base_", 
+                               off_data_sales_prefix = "lpred_sales_base_")
   
   # non0 model
   non0_mod_data <- mod_data_i %>% 
@@ -102,28 +108,34 @@ store_item_event_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom
     mutate(item_id = item_i, 
            store_id = store_i)
   
-  
   # manual memory cleaning is annoying...
   rm(dat_i, off_dat_i, mod_data_i, non0_mod_data, sales_mod_data, m_non0_time_i, m_sales_time_i)
   gc()
   
-  results_i
+  store_item_event_coefs <- bind_rows(store_item_event_coefs, results_i)
 }
-
-# closing the clusters
-stopCluster(cl)
-stopImplicitCluster()
-gc()
+  
+#   results_i
+# }
+# 
+# # closing the clusters
+# stopCluster(cl)
+# stopImplicitCluster()
+# gc()
 
 # summary of results
 store_item_event_coefs %>% 
   group_by(term) %>% 
-  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
-            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
-            sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
-            mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
-            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+  summarise(
+    mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
+    sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
+    sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+    sd_within_non0_med = median(std.error_non0, na.rm = T), 
+    mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
+    sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
+    sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+    sd_within_sales_med = median(std.error_sales, na.rm = T)
+  ) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

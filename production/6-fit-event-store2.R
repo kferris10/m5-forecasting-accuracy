@@ -23,7 +23,6 @@ train_raw %>% select(1:20) %>% glimpse()
 # setting up the baseline predictions
 load("predictions/preds-time-month-wday-snap.RData")
 
-
 # fitting by store -------------------------------------------------------------
 
 store_event_coefs <- tibble(data.frame())
@@ -89,12 +88,16 @@ for(i in unique(train_raw$store_id)) {
 # summary of results
 store_event_coefs %>% 
   group_by(term) %>% 
-  summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
-            sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
-            sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
-            mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
-            sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+  summarise(
+    mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
+    sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
+    sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+    sd_within_non0_med = median(std.error_non0, na.rm = T), 
+    mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
+    sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
+    sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+    sd_within_sales_med = median(std.error_sales, na.rm = T)
+  ) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

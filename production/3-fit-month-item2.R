@@ -12,7 +12,8 @@ library(tidyverse)
 library(broom)
 library(foreach)
 library(doParallel)
-source("production/helper-funs.R")
+library(progress)
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
 # loading data
@@ -38,16 +39,16 @@ gc()
 
 
 #setup parallel backend to use many processors
-cl <- makeCluster(getOption("mc.cores"))
-registerDoParallel(cl)
-item_month_coefs <- foreach(i=unique(train_raw$item_id), .combine=rbind) %dopar% {
-  library(tidyverse)
-  library(broom)
+# cl <- makeCluster(getOption("mc.cores"))
+# registerDoParallel(cl)
+# item_month_coefs <- foreach(i=unique(train_raw$item_id), .combine=rbind) %dopar% {
+#   library(tidyverse)
+#   library(broom)
   
-# item_coefs <- tibble(data.frame())
-# pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
-# for(i in unique(train_raw$item_id)) {
-#   pb$tick()
+item_month_coefs <- tibble(data.frame())
+pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
+for(i in unique(train_raw$item_id)) {
+  pb$tick()
   
   dat_i <- train_raw %>% filter(item_id == i)
   off_dat_i <- preds_base %>% filter(item_id == i)
@@ -93,16 +94,16 @@ item_month_coefs <- foreach(i=unique(train_raw$item_id), .combine=rbind) %dopar%
     left_join(cf_sales, by = "term", suffix = c("_non0", "_sales")) %>% 
     mutate(item_id = i)
   
-#   item_coefs <- bind_rows(item_coefs, results_i)
-# }
-  
-  results_i
+  item_month_coefs <- bind_rows(item_month_coefs, results_i)
 }
-
-# closing the clusters
-stopCluster(cl)
-stopImplicitCluster()
-gc()
+  
+#   results_i
+# }
+# 
+# # closing the clusters
+# stopCluster(cl)
+# stopImplicitCluster()
+# gc()
 
 # summary of results
 item_month_coefs %>% 
@@ -110,9 +111,11 @@ item_month_coefs %>%
   summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
             sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
             sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_non0, na.rm = T), 
             mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
             sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_sales, na.rm = T)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

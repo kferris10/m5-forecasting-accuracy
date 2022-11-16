@@ -8,7 +8,7 @@ load("predictions/preds-time-all.RData")
 load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
 load("predictions/preds-snap-all.RData")
-# load("predictions/preds-event-all.RData")
+load("predictions/preds-event-all.RData")
 load("predictions/preds-price-all.RData")
 
 # generating predictions ------------------------------------------------------
@@ -20,12 +20,14 @@ preds_global_wide <- preds_global %>%
   slice(rep(1, nrow(preds_time))) %>% 
   bind_cols(select(preds_time, ends_with("id")), .)
 
-preds_time_month_wday_snap <- bind_cols(
+preds_time_month_wday_snap_event_price <- bind_cols(
   select(preds_time, ends_with("id")), 
   select(preds_time, -ends_with("id")) + 
     select(preds_month, -ends_with("id")) + 
     select(preds_weekday, -ends_with("id")) + 
-    select(preds_snap, -ends_with("id"))
+    select(preds_snap, -ends_with("id")) + 
+    select(preds_event, -ends_with("id")) +
+    select(preds_price, -ends_with("id"))
 ) %>% 
   rename_with(str_replace_all, pattern = "_time", replacement = "_base") %>% 
   mutate(across(where(is.numeric), round, digits = 4))
@@ -34,8 +36,7 @@ preds_time_month_wday_snap <- bind_cols(
 preds <- bind_cols(
   select(preds_global_wide, ends_with("id")), 
   select(preds_global_wide, -ends_with("id")) + 
-    select(preds_time_month_wday_snap, -ends_with("id")) + 
-    select(preds_price, -ends_with("id"))
+    select(preds_time_month_wday_snap_event_price, -ends_with("id"))
 ) %>% 
   rename_with(str_replace_all, pattern = "_base", replacement = "")
 
@@ -122,7 +123,7 @@ preds_submission <- bind_rows(preds_validation, preds_evaluation)
 
 # saving -----------------------------------------------------------------------
 
-save(preds_time_month_wday_snap, file = "predictions/preds-time-month-wday-snap.RData")
+save(preds_time_month_wday_snap_event_price, file = "predictions/preds-time-month-wday-snap-event-price.RData")
 save(preds, file = "predictions/preds-all.RData")
 save(preds_submission, file = paste0("predictions/preds-submission-", Sys.Date(), ".RData"))
 write.csv(preds_submission, file = "predictions/preds-submission.csv", quote = F, row.names = F)

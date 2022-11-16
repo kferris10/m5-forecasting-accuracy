@@ -1,7 +1,7 @@
 
 # notes ------------------------------------------------------------------------
 
-# calculating time trend coefficients for each store
+# calculating coefficients on snap effects for each store
 # this takes ~20 minutes
 
 # setup ------------------------------------------------------------------------
@@ -11,17 +11,17 @@ library(Hmisc)
 library(tidyverse)
 library(broom)
 library(progress)
-source("production/helper-funs.R")
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
 
 # loading data
 cal <- read_feather("data/data-calendar-clean.feather")
+train_raw <- read_feather("data/data-train-wide.feather")
+train_raw %>% select(1:20) %>% glimpse()
 load("predictions/preds-global.RData")
 load("predictions/preds-time-all.RData")
 load("predictions/preds-month-all.RData")
 load("predictions/preds-weekday-all.RData")
-train_raw <- read_feather("data/data-train-wide.feather")
-train_raw %>% select(1:20) %>% glimpse()
 
 # setting up the baseline time predictions
 preds_base <- bind_cols(
@@ -39,7 +39,7 @@ for(i in unique(train_raw$store_id)) {
   pb$tick()
   
   dat_i <- train_raw %>% filter(store_id == i)
-  off_dat_i <- preds_time %>% filter(store_id == i)
+  off_dat_i <- preds_base %>% filter(store_id == i)
   
   # fitting the models
   time_mod_data_i <- prep_time_data(dat_i, 
@@ -73,9 +73,11 @@ store_snap_coefs %>%
   summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
             sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
             sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_non0, na.rm = T), 
             mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
             sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+            sd_within_sales_med = median(std.error_sales, na.rm = T)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

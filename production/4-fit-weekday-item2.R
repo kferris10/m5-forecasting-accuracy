@@ -10,11 +10,12 @@ library(feather)
 library(Hmisc)
 library(tidyverse)
 library(broom)
+library(progress)
 library(foreach)
 library(iterators)
 library(doParallel)
-library(tcltk)
-source("production/helper-funs.R")
+# library(tcltk)
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
@@ -40,18 +41,18 @@ gc()
 
 #setup parallel backend to use many processors
 item_ids <- unique(train_raw$item_id)
-cl <- makeCluster(getOption("mc.cores"))
-registerDoParallel(cl)
-n <- length(item_ids)
-clusterExport(cl, c("n"))
-item_weekday_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
-  if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
-  setTkProgressBar(pb, i)  
-  
-# item_coefs <- tibble(data.frame())
-# pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
-# for(i in unique(train_raw$item_id)) {
-#   pb$tick()
+# cl <- makeCluster(getOption("mc.cores"))
+# registerDoParallel(cl)
+# n <- length(item_ids)
+# clusterExport(cl, c("n"))
+# item_weekday_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
+#   if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
+#   setTkProgressBar(pb, i)  
+
+item_weekday_coefs <- tibble(data.frame())
+pb <- progress_bar$new(total = length(unique(train_raw$item_id)))
+for(i in seq_along(item_ids)) {
+  pb$tick()
   item_i <- item_ids[i]
   
   dat_i <- train_raw %>% filter(item_id == item_i)
@@ -98,16 +99,16 @@ item_weekday_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "
     left_join(cf_sales, by = "term", suffix = c("_non0", "_sales")) %>% 
     mutate(item_id = item_i)
   
-#   item_coefs <- bind_rows(item_coefs, results_i)
-# }
-  
-  results_i
+  item_weekday_coefs <- bind_rows(item_weekday_coefs, results_i)
 }
-
-# closing the clusters
-stopCluster(cl)
-stopImplicitCluster()
-gc()
+  
+#   results_i
+# }
+# 
+# # closing the clusters
+# stopCluster(cl)
+# stopImplicitCluster()
+# gc()
 
 # summary of results
 item_weekday_coefs %>% 
@@ -115,9 +116,11 @@ item_weekday_coefs %>%
   summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
             sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
             sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_non0, na.rm = T), 
             mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
             sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+            sd_within_sales_med = median(std.error_sales, na.rm = T)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients

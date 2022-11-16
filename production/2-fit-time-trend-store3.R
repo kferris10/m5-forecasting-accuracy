@@ -16,10 +16,10 @@ source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 3)
 
 # loading data
-load("predictions/preds-global.RData")
 cal <- read_feather("data/data-calendar-clean.feather")
 train_raw <- read_feather("data/data-train-wide.feather")
 train_raw %>% select(1:20) %>% glimpse()
+load("predictions/preds-global.RData")
 
 # fitting by store -------------------------------------------------------------
 

@@ -14,12 +14,9 @@ library(progress)
 library(foreach)
 library(iterators)
 library(doParallel)
-library(tcltk)
-source("production/helper-funs.R")
+# library(tcltk)
+source("production/0-helper-funs.R")
 options(stringsAsFactors = F, digits = 3, mc.cores = 4)
-
-# model specifications I'll be using
-f_month <- formula(~ 0 + factor(month))
 
 # loading data
 cal <- read_feather("data/data-calendar-clean.feather")
@@ -43,20 +40,20 @@ gc()
 # fitting by item -------------------------------------------------------------
 
 # setup parallel backend to use many processors
-cl <- makeCluster(getOption("mc.cores"))
-registerDoParallel(cl)
-n <- nrow(train_raw)
-clusterExport(cl, c("n"))
-store_item_month_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
-  if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
-  setTkProgressBar(pb, i)  
+# cl <- makeCluster(getOption("mc.cores"))
+# registerDoParallel(cl)
+# n <- nrow(train_raw)
+# clusterExport(cl, c("n"))
+# store_item_month_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom", "tcltk"), .combine=rbind) %dopar% {
+#   if(!exists("pb")) pb <- tkProgressBar("Parallel task", min=1, max=n)
+#   setTkProgressBar(pb, i)  
   
 # if I need to test one at a time
-# store_item_month_coefs <- tibble(data.frame())
-# pb <- progress_bar$new(total = nrow(train_raw))
-# for(i in 1:nrow(train_raw)) {
-#   pb$tick()
-  
+store_item_month_coefs <- tibble(data.frame())
+pb <- progress_bar$new(total = nrow(train_raw))
+for(i in 1:nrow(train_raw)) {
+  pb$tick()
+
   dat_i <- train_raw %>% 
     filter(item_id == train_raw$item_id[i], store_id == train_raw$store_id[i])
   off_dat_i <- preds_base %>% 
@@ -104,16 +101,16 @@ store_item_month_coefs <- foreach(i=icount(n), .packages = c("tidyverse", "broom
     mutate(item_id = train_raw$item_id[i], store_id = train_raw$store_id[i])
   
   
-# store_item_month_coefs <- bind_rows(store_item_month_coefs, results_i)
-# }
-
-  results_i
+store_item_month_coefs <- bind_rows(store_item_month_coefs, results_i)
 }
 
-# closing the clusters
-stopCluster(cl)
-stopImplicitCluster()
-gc()
+#   results_i
+# }
+# 
+# # closing the clusters
+# stopCluster(cl)
+# stopImplicitCluster()
+# gc()
 
 # summary of results
 store_item_month_coefs %>% 
@@ -121,9 +118,11 @@ store_item_month_coefs %>%
   summarise(mu_non0 = weighted.mean(estimate_non0, 1 / std.error_non0^2, na.rm = T), 
             sd_between_non0 = sqrt(wtd.var(estimate_non0, 1 / std.error_non0^2)), 
             sd_within_non0 = sqrt(mean(std.error_non0^2, na.rm = T)), 
+            sd_within_non0_med = median(std.error_non0, na.rm = T), 
             mu_sales = weighted.mean(estimate_sales, 1 / std.error_sales^2, na.rm = T), 
             sd_between_sales = sqrt(wtd.var(estimate_sales, 1 / std.error_sales^2)), 
-            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T))) %>% 
+            sd_within_sales = sqrt(mean(std.error_sales^2, na.rm = T)), 
+            sd_within_sales_med = median(std.error_sales, na.rm = T)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 # applying RTTM to coefficients
